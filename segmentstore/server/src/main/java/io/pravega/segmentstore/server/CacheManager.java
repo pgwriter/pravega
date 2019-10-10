@@ -383,9 +383,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @GuardedBy("lock")
     private boolean adjustCurrentGeneration(CacheStatus currentStatus) {
-        // We only need to increment if we had any activity in the current generation. This can be determined by comparing
-        // the current generation with the newest generation from the retrieved status.
-        boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration;
+        // We need to increment if at least one of the following happened:
+        // 1. We had any activity in the current generation. This can be determined by comparing the current generation
+        // with the newest generation from the retrieved status.
+        // 2. We are currently exceeding the eviction threshold. It is possible that even with no activity, some entries
+        // may have recently become eligible for eviction, in which case we should try to evict them.
+        boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration || exceedsEvictionThreshold();
         if (shouldIncrement) {
             this.currentGeneration++;
         }
@@ -421,8 +424,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum usable size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return this.lastSnapshot.getUsedBytes() > this.policy.getEvictionThreshold()
+        return exceedsEvictionThreshold()
                 || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
+    }
+
+    @GuardedBy("lock")
+    private boolean exceedsEvictionThreshold() {
+        return this.lastSnapshot.getUsedBytes() > this.policy.getEvictionThreshold();
     }
 
     @GuardedBy("lock")
