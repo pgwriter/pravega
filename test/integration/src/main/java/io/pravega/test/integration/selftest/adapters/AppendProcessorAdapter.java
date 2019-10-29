@@ -16,6 +16,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
+import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.Append;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
@@ -48,6 +50,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
     private final TestConfig testConfig;
     @GuardedBy("handlers")
     private final HashMap<String, SegmentHandler> handlers;
+    private final ConnectionTracker connectionTracker;
 
     //endregion
 
@@ -64,6 +67,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
         this.testConfig = testConfig;
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
         this.handlers = new HashMap<>();
+        this.connectionTracker = new ConnectionTracker();
     }
 
     //endregion
@@ -206,6 +210,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
         @GuardedBy("resultFutures")
         private CompletableFuture<Void> pause;
         private final AtomicReference<CompletableFuture<Void>> appendSetup;
+        private final AtomicLong pendingBytes = new AtomicLong();
 
         SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
             this.segmentName = segmentName;
@@ -288,7 +293,16 @@ public class AppendProcessorAdapter extends StoreAdapter {
         }
 
         @Override
-        public void pauseReading() {
+        public void adjustOutstandingBytes(int delta) {
+            long bytesWaiting = this.pendingBytes.updateAndGet(p -> Math.max(0, p + delta));
+            if (connectionTracker.adjustOutstandingBytes(delta, bytesWaiting)) {
+                resumeReading();
+            } else {
+                pauseReading();
+            }
+        }
+
+        private void pauseReading() {
             synchronized (this.resultFutures) {
                 if (this.pause == null) {
                     this.pause = new CompletableFuture<>();
@@ -296,8 +310,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
             }
         }
 
-        @Override
-        public void resumeReading() {
+        private void resumeReading() {
             CompletableFuture<Void> p;
             synchronized (this.resultFutures) {
                 p = this.pause;
