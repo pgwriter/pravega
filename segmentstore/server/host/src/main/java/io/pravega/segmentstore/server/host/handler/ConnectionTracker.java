@@ -70,7 +70,7 @@ public class ConnectionTracker {
      * @param connectionOutstandingBytes The current number of outstanding bytes for the connection invoking this method.
      * @return True if the connection should continue reading, false if it should pause.
      */
-    boolean adjustOutstandingBytes(long deltaBytes, long connectionOutstandingBytes) {
+    public boolean adjustOutstandingBytes(long deltaBytes, long connectionOutstandingBytes) {
         // Perform quick sanity checks as assertions: these should pop up during tests but since this method is invoked
         // very frequently we do not want them enabled for production use.
         // Sanity Check #1: If a connection increased by an amount, its total outstanding should be at least that value.
