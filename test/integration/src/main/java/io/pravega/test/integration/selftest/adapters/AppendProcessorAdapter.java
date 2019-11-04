@@ -20,7 +20,6 @@ import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
@@ -210,12 +208,15 @@ public class AppendProcessorAdapter extends StoreAdapter {
         @GuardedBy("resultFutures")
         private CompletableFuture<Void> pause;
         private final AtomicReference<CompletableFuture<Void>> appendSetup;
-        private final AtomicLong pendingBytes = new AtomicLong();
 
         SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
             this.segmentName = segmentName;
             this.producerCount = producerCount;
-            this.appendProcessor = new AppendProcessor(segmentStore, this, new FailingRequestProcessor(), null);
+            this.appendProcessor = AppendProcessor.defaultBuilder()
+                                                  .store(segmentStore)
+                                                  .connection(this)
+                                                  .connectionTracker(connectionTracker)
+                                                  .build();
             this.nextSequence = 1;
             this.resultFutures = new HashMap<>();
             this.appendSetup = new AtomicReference<>();
@@ -293,16 +294,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
         }
 
         @Override
-        public void adjustOutstandingBytes(int delta) {
-            long bytesWaiting = this.pendingBytes.updateAndGet(p -> Math.max(0, p + delta));
-            if (connectionTracker.adjustOutstandingBytes(delta, bytesWaiting)) {
-                resumeReading();
-            } else {
-                pauseReading();
-            }
-        }
-
-        private void pauseReading() {
+        public void pauseReading() {
             synchronized (this.resultFutures) {
                 if (this.pause == null) {
                     this.pause = new CompletableFuture<>();
@@ -310,7 +302,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
             }
         }
 
-        private void resumeReading() {
+        @Override
+        public void resumeReading() {
             CompletableFuture<Void> p;
             synchronized (this.resultFutures) {
                 p = this.pause;
