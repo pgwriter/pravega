@@ -45,12 +45,12 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_BASE_PORT = "basePort";
     public static final String PROPERTY_BOOKIE_COUNT = "bookieCount";
     public static final String PROPERTY_ZK_PORT = "zkPort";
-    public static final String PROPERTY_ZK_LEDGERS_PATH = "zkLedgersPath";
+    public static final String PROPERTY_LEDGERS_PATH = "zkLedgersPath"; // ZK namespace path for ledger metadata.
     public static final String PROPERTY_START_ZK = "startZk";
     public static final String PROPERTY_SECURE_BK = "secureBk";
     public static final String TLS_KEY_STORE_PASSWD = "tlsKeyStorePasswd";
     public static final String TLS_KEY_STORE = "tlsKeyStore";
-    public static final String PROPERTY_LEDGERS_DIR = "ledgersDir";
+    public static final String PROPERTY_LEDGERS_DIR = "ledgersDir"; // File System path to store ledger data.
 
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final boolean startZk;
