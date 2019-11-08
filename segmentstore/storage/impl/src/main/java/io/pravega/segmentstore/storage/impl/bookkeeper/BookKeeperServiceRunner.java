@@ -286,7 +286,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
             b.bookiePorts(bkPorts);
             b.zkPort(Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT)));
-            b.ledgersPath(System.getProperty(PROPERTY_ZK_LEDGERS_PATH));
+            b.ledgersPath(System.getProperty(PROPERTY_LEDGERS_PATH));
             b.startZk(Boolean.parseBoolean(System.getProperty(PROPERTY_START_ZK, "false")));
             b.tLSKeyStore(System.getProperty(TLS_KEY_STORE, "../../../config/bookie.keystore.jks"));
             b.tLSKeyStorePasswordPath(System.getProperty(TLS_KEY_STORE_PASSWD, "../../../config/bookie.keystore.jks.passwd"));
@@ -296,7 +296,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int), " +
                             "%s(int), %s(int), %s(String). (%s).", PROPERTY_BASE_PORT, PROPERTY_BOOKIE_COUNT, PROPERTY_ZK_PORT,
-                    PROPERTY_ZK_LEDGERS_PATH, ex.getMessage()));
+                    PROPERTY_LEDGERS_PATH, ex.getMessage()));
             System.exit(-1);
             return;
         }
